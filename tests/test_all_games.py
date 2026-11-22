@@ -577,9 +577,9 @@ def sample_specs(out_dir: Path) -> list[dict]:
 
 
 def test_all_16_games_registered():
-    assert len(GAME_REGISTRY) == 16
+    assert len(GAME_REGISTRY) == 22
     caps = list_capabilities()
-    assert len(caps["game_types"]) == 16
+    assert len(caps["game_types"]) == 22
     assert len(caps["built_in_icons"]) >= 70
     assert len(caps["themes"]) == 6
     assert len(caps["page_sizes"]) == 9
