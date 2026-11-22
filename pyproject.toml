@@ -1,0 +1,26 @@
+[project]
+name = "printgames"
+version = "0.1.0"
+description = "Beautiful, print-ready puzzle and pen-and-paper game generator exposed as an MCP server."
+readme = "README.md"
+authors = [
+    { name = "deonsa", email = "deonmfe@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=1.2.0",
+    "pydantic>=2.7.0",
+]
+
+[project.scripts]
+printgames = "printgames.cli:main"
+printgames-mcp = "printgames.server:main"
+
+[build-system]
+requires = ["uv_build>=0.9.8,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
