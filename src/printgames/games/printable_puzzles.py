@@ -7,6 +7,7 @@ PDF pipeline or separate MCP instance is introduced.
 from __future__ import annotations
 
 from html import escape
+import textwrap
 from typing import Any
 
 from ..core.pages import PageSpec
@@ -42,6 +43,43 @@ def _puzzle(spec: Any) -> dict[str, Any]:
     raise TypeError(f"Unsupported printable puzzle specification: {type(spec).__name__}")
 
 
+
+def _crossword_clue_height_mm(data: dict[str, Any], page: PageSpec) -> float:
+    """Conservative height for the actual two-column Across/Down clue layout.
+
+    Estimate lines per clue using the width and typography in _notes(). Each
+    direction is laid out in its own column, so the taller column determines
+    the overall height. This is an intentional *preflight* estimate: its job
+    is to reject risky pages rather than silently hide any clues.
+    """
+    s = page.scale
+    # The standard page frame has 5*s mm horizontal padding on both sides,
+    # with a 5 mm gutter between the two flex columns. Allow for borders.
+    column_width_mm = max(0.0, (page.content_width_mm - 12 * s - 5) / 2)
+    font_pt = 7.4 * s  # Must match the clue styles in _notes().
+    # Allow a conservative 0.65-em glyph advance (including bold numbering).
+    # It intentionally estimates fewer chars/line than typical prose.
+    char_width_mm = font_pt * (25.4 / 72) * 0.65
+    chars_per_line = max(1, int((column_width_mm - 2 * s) / char_width_mm))
+    line_height_mm = font_pt * (25.4 / 72) * 1.24
+    column_heights = []
+    for direction in ("across", "down"):
+        entries = [p for p in data["entries"] if p["direction"] == direction]
+        if not entries:
+            continue
+        height = 0.0
+        for entry in entries:
+            # The rendered prefix and answer length use space too.
+            text = f'{entry["number"]}. {entry["clue"]} ({len(entry["word"])})'
+            lines = textwrap.wrap(
+                text, width=chars_per_line,
+                break_long_words=True, break_on_hyphens=False,
+            )
+            height += max(1, len(lines)) * line_height_mm + 1.4 * s
+        column_heights.append(height)
+    # Section headings, divider, top margin, and a small measurement buffer.
+    return max(column_heights, default=0.0) + 9.0 * s
+
 def _grid_table(data: dict[str, Any], page: PageSpec, theme: ThemeSpec, answer: bool) -> str:
     kind = data["type"]
     grid = data["grid"]
@@ -54,7 +92,7 @@ def _grid_table(data: dict[str, Any], page: PageSpec, theme: ThemeSpec, answer: 
     if kind in ("word_search", "number_search"):
         notes_rows = (len(data["items"]) + 2) // 3
     elif kind == "crossword":
-        notes_rows = (len(data["entries"]) + 1) // 2
+        notes_rows = 0  # Exact clue budget is computed by direction below.
     elif kind == "kriss_kross":
         notes_rows = len({len(w) for w in data["word_bank"]})
     else:
@@ -62,6 +100,8 @@ def _grid_table(data: dict[str, Any], page: PageSpec, theme: ThemeSpec, answer: 
     # 52 mm (scaled) is a conservative allowance for frame padding, page
     # chrome, player instructions and footer; another 4 mm per notes row.
     reserved_h = (52.0 + 4.0 * notes_rows) * page.scale
+    if kind == "crossword":
+        reserved_h += _crossword_clue_height_mm(data, page)
     available_h = max(
         0.0,
         min(
@@ -159,7 +199,7 @@ def _notes(data: dict[str, Any], theme: ThemeSpec, answer: bool, page: PageSpec)
         for direction in ("across", "down"):
             entries = [p for p in data["entries"] if p["direction"] == direction]
             if entries:
-                lines = ''.join(f'<div style="margin-bottom:1.4mm;font-size:{7.4*page.scale:.1f}pt;line-height:1.24;"><b>{p["number"]}.</b> {escape(p["clue"])} <span style="color:{theme.ink_muted};">({len(p["word"])})</span></div>' for p in entries)
+                lines = ''.join(f'<div style="margin-bottom:1.4mm;font-size:{7.4*page.scale:.1f}pt;line-height:1.24;overflow-wrap:anywhere;word-break:break-word;"><b>{p["number"]}.</b> {escape(p["clue"])} <span style="color:{theme.ink_muted};">({len(p["word"])})</span></div>' for p in entries)
                 groups.append(f'<section style="min-width:0;flex:1;"><b style="display:block;margin-bottom:1.5mm;border-bottom:0.5pt solid {theme.border_strong};">{direction.title()}</b>{lines}</section>')
         return f'<div style="display:flex;gap:5mm;margin-top:2mm;">{"".join(groups)}</div>'
     if kind == "kriss_kross":
