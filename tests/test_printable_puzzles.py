@@ -142,3 +142,58 @@ def test_booklet_compiles_new_activities(tmp_path):
     result = produce_booklet(book)
     assert result.expected_pages == 6  # cover + TOC + 2 puzzles + 2 keys
     assert Path(result.output_paths['html']).exists()
+
+# Review regressions: code review on PR #1 (commit 62b2367).
+
+def _assert_crossword_slots_distinct(result):
+    grid = result['grid']
+    nrows, ncols = len(grid), len(grid[0])
+    occupied_by_direction = {}
+    for entry in result['entries']:
+        r, c, dr, dc, word = (entry[key] for key in ('row', 'col', 'dr', 'dc', 'word'))
+        assert ''.join(grid[r + i*dr][c + i*dc] for i in range(len(word))) == word
+        before = (r-dr, c-dc)
+        after = (r+len(word)*dr, c+len(word)*dc)
+        for rr, cc in (before, after):
+            if 0 <= rr < nrows and 0 <= cc < ncols:
+                assert not grid[rr][cc], f'{word} lacks an independent slot boundary'
+        for i in range(len(word)):
+            pos = (r + i*dr, c + i*dc)
+            occupied_by_direction.setdefault(pos, []).append((dr, dc))
+    for directions in occupied_by_direction.values():
+        assert len(directions) == len(set(directions)), 'same-direction crossword overlap'
+
+
+def test_crossword_subword_no_collinear_overlap():
+    entries = {'CATER': 'An event provider', 'CAT': 'A pet',
+               'TREETOP': 'Upper part of a tree'}
+    from printgames.games.printable_engines import make_kriss_kross
+    for kind in ('crossword', 'kriss_kross'):
+        puzzle = (make_crossword(entries, seed=0) if kind == 'crossword'
+                  else make_kriss_kross(list(entries), seed=0))
+        _assert_crossword_slots_distinct(puzzle)
+        assert len(puzzle['entries']) == len(entries)
+
+
+@pytest.mark.parametrize('kind', ['word_search', 'number_search'])
+def test_ink_saver_solution_highlighting_is_visible(kind):
+    model_cls, renderer, _ = GAME_REGISTRY[kind]
+    model = model_cls.model_validate(spec(kind, ink_saver=True))
+    page = resolve_page_spec(model.page_size, model.orientation, model.margin_mm)
+    theme = get_theme(model.theme, ink_saver=True)
+    assert theme.accent_soft == theme.paper
+    puzzle, key = renderer(model, page, theme)
+    assert 'text-decoration:underline' not in puzzle.body_html
+    assert 'text-decoration:underline' in key.body_html
+    assert 'text-decoration-thickness:1.2pt' in key.body_html
+    assert f'border:1.15pt solid {theme.ink}' in key.body_html
+
+
+@pytest.mark.parametrize('seed', [0, 1, 2, 17])
+def test_short_numeric_targets_are_unambiguous(seed):
+    from printgames.games.printable_engines import _occurrences
+    a = make_search(['12', '34'], size=12, seed=seed, numeric=True)
+    b = make_search(['12', '34'], size=12, seed=seed, numeric=True)
+    assert a['grid'] == b['grid'] and a['placements'] == b['placements']
+    assert all(_occurrences(a['grid'], word) == 1 for word in ('12', '34'))
+
