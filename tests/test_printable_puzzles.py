@@ -197,3 +197,34 @@ def test_short_numeric_targets_are_unambiguous(seed):
     assert a['grid'] == b['grid'] and a['placements'] == b['placements']
     assert all(_occurrences(a['grid'], word) == 1 for word in ('12', '34'))
 
+
+# Re-review regression (78aa817): minimum printable grid cell sizing.
+
+@pytest.mark.parametrize('kind', ['word_search', 'number_search'])
+def test_oversized_search_grid_rejected_on_80mm_custom_page(kind, tmp_path):
+    # Both specs are schema-valid; the renderer must reject the impossible
+    # physical layout instead of creating HTML/PDF with silently clipped rows.
+    out = tmp_path / f'{kind}_tiny.html'
+    items = {'words': ['TREE', 'BIRD']} if kind == 'word_search' else {'numbers': ['12', '34']}
+    data = spec(
+        kind, **items, grid_size=25, page_size='custom',
+        custom_width_mm=80, custom_height_mm=80,
+        output_format='html', output_path=str(out),
+    )
+    with pytest.raises(ValueError, match=r'grid cannot fit legibly.*Reduce grid_size'):
+        produce_game_from_dict(data)
+    assert not out.exists()
+
+
+@pytest.mark.parametrize('kind', ['word_search', 'number_search'])
+def test_large_search_grid_remains_printable_on_a4(kind, tmp_path):
+    # Guard must not reject genuinely usable page/grid combinations.
+    items = {'words': ['TREE', 'BIRD']} if kind == 'word_search' else {'numbers': ['12', '34']}
+    result = produce_game_from_dict(spec(
+        kind, **items, grid_size=25, page_size='a4',
+        output_format='pdf', output_path=str(tmp_path / f'{kind}_a4.pdf'),
+    ))
+    assert result.expected_pages == 2
+    assert result.verified_pdf_pages == 2
+    assert result.fit_verified is True
+    assert result.warnings == []
