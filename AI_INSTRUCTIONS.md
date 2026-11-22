@@ -41,7 +41,24 @@ The PrintGames server is a **precision typesetting, vector-illustration, and pri
 
 ---
 
-## 2. Game-by-Game Requirements & Quality Rules (All 16 Games)
+## 2. Game-by-Game Requirements & Quality Rules (All 22 Games)
+
+### Additional Native Printable Puzzles (6 tools)
+
+These use the **same** standard `spec` format, page themes, PDF/HTML exporter,
+page-fit verification, and booklet integration as the original 16 activities.
+
+- `generate_word_search` — Provide `words` (2–24), `grid_size` (6–25), `difficulty`, and `seed`. Easy uses horizontal/down placements, medium permits diagonals, hard permits backward words. The generator checks for unintended duplicate answer paths and refuses ambiguous word sets.
+- `generate_number_search` — Provide `numbers` as **strings** (2–24) to preserve leading zeroes, plus `grid_size`, `difficulty`, `seed`. The solution highlights each requested sequence.
+- `generate_crossword` — Provide 3–25 `entries: [{"answer": "APPLE", "clue": "A crisp fruit"}, ...]`, odd `grid_size` (9–29), and `seed`. Every entry must be placeable; if the grid cannot fit them all, the server raises a clear error rather than omitting entries.
+- `generate_kriss_kross` — Provide 3–25 `words`, odd `grid_size` (9–29), and `seed`. The answer key fills the numbered boxes; the student page has a length-grouped word bank.
+- `generate_sudoku` — Provide `grid_size` 4, 6 or 9, `difficulty`, and `seed`. The underlying generator verifies a unique completed board.
+- `generate_nonogram` — Provide `grid_size` 5 or 7 and `seed`. The puzzle uses independently checked uniquely solvable silhouettes.
+
+Always supply a meaningful `title` and tailored `instructions` (12–420 characters).
+Use `output_format: "both"` when a human wants to inspect the printable HTML as
+well as the PDF. `include_answer_key: false` suppresses the solution page.
+All six can also appear inside the `games` array of `create_game_booklet`.
 
 ### Category 1: Word & Letter Puzzles
 
