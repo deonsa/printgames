@@ -44,6 +44,65 @@ def _occurrences(grid: list[list[str]], word: str) -> int:
     return len(seen)
 
 
+
+def _fill_search_grid(grid: list[list[str]], targets: list[str], alphabet: str, rng: random.Random) -> bool:
+    """Fill blank cells without accidentally introducing extra target paths.
+
+    When possible, use symbols absent from every target. For fully covered
+    alphabets use seeded, constraint-checked backtracking instead of repeated
+    unconstrained random filler. Only a newly assigned cell can create a new
+    unintended occurrence, so checking paths through that cell is sufficient.
+    """
+    n = len(grid)
+    blanks = [(r, c) for r in range(n) for c in range(n) if not grid[r][c]]
+    rng.shuffle(blanks)
+    available = [letter for letter in alphabet if letter not in set(''.join(targets))]
+    if available:
+        for r, c in blanks:
+            grid[r][c] = rng.choice(available)
+        return True
+
+    counts = Counter(''.join(targets))
+    # Rare target symbols make fewer accidental matches. Shuffle ties so the
+    # generated grid remains variable but reproducible for a given seed.
+    choices = list(alphabet)
+    rng.shuffle(choices)
+    choices.sort(key=lambda letter: counts[letter])
+
+    def creates_extra(row: int, col: int) -> bool:
+        for word in targets:
+            length = len(word)
+            for dr, dc in DIRECTIONS:
+                for offset in range(length):
+                    sr, sc = row - offset * dr, col - offset * dc
+                    er, ec = sr + (length - 1) * dr, sc + (length - 1) * dc
+                    if not (0 <= sr < n and 0 <= sc < n and 0 <= er < n and 0 <= ec < n):
+                        continue
+                    if all(grid[sr + i * dr][sc + i * dc] == word[i] for i in range(length)):
+                        return True
+        return False
+
+    # Bound pathological searches; the normal case needs no backtracking.
+    budget = 100_000
+    def fill(index: int) -> bool:
+        nonlocal budget
+        if index == len(blanks):
+            return True
+        if budget <= 0:
+            return False
+        row, col = blanks[index]
+        for digit in choices:
+            budget -= 1
+            grid[row][col] = digit
+            if not creates_extra(row, col) and fill(index + 1):
+                return True
+            grid[row][col] = ''
+            if budget <= 0:
+                return False
+        return False
+
+    return fill(0)
+
 def make_search(words: list[str], *, size: int = 13, difficulty: str = "medium", seed: int = 0, numeric: bool = False) -> dict[str, Any]:
     """A deterministic letter/number search. The requested items occur once each.
 
@@ -98,17 +157,27 @@ def make_search(words: list[str], *, size: int = 13, difficulty: str = "medium",
             positions[word] = {"row": r, "col": c, "dr": dr, "dc": dc}
         if not success:
             continue
-        for r in range(size):
-            for c in range(size):
-                if not grid[r][c]:
-                    grid[r][c] = rng.choice(alpha)
+        # The placed words must already have unique physical paths. Filling
+        # blanks cannot repair accidental duplicates between placed entries.
+        if not all(_occurrences(grid, word) == 1 for word in normalized):
+            continue
+        if not _fill_search_grid(grid, normalized, alpha, rng):
+            continue
         if all(_occurrences(grid, word) == 1 for word in normalized):
             return {"type": "number_search" if numeric else "word_search", "title": "Number Search" if numeric else "Word Search", "difficulty": difficulty, "seed": seed, "grid": grid, "items": normalized, "placements": positions}
     raise ValueError("could not create an unambiguous search grid; change the seed, list or size")
 
 
-def _cross_candidates(board: list[list[str]], word: str, rng: random.Random) -> list[tuple[int, int, int, int, int]]:
-    """Crossword positions: score, r, c, dr, dc. A crossing is mandatory."""
+def _cross_candidates(
+    board: list[list[str]], word: str, rng: random.Random,
+    occupied_directions: dict[tuple[int, int], set[tuple[int, int]]],
+) -> list[tuple[int, int, int, int, int]]:
+    """Score only legal crossword slots with perpendicular crossings.
+
+    An occupied matching letter is not sufficient: a crossing must belong to
+    an existing answer in the *other* orientation. Same-direction overlap is
+    forbidden even when one word is a substring of the other.
+    """
     n = len(board)
     candidates = []
     # Across and down only.
@@ -132,6 +201,10 @@ def _cross_candidates(board: list[list[str]], word: str, rng: random.Random) -> 
                         ok = False
                         break
                     if old:
+                        directions = occupied_directions.get((rr, cc), set())
+                        if (dr, dc) in directions or (dc, dr) not in directions:
+                            ok = False
+                            break
                         crosses += 1
                     else:
                         neighbors = ((rr - 1, cc), (rr + 1, cc)) if dr == 0 else ((rr, cc - 1), (rr, cc + 1))
@@ -171,19 +244,21 @@ def make_crossword(entries: dict[str, str], *, size: int = 19, seed: int = 0, re
     rng = random.Random(seed)
     for _ in range(130):
         board = [["" for _ in range(size)] for _ in range(size)]
+        occupied_directions: dict[tuple[int, int], set[tuple[int, int]]] = {}
         placed = []
         first = words[0] if _ < 20 else rng.choice(words[:min(4, len(words))])
         first_c = (size - len(first)) // 2
         first_r = size // 2
         for j, letter in enumerate(first):
             board[first_r][first_c + j] = letter
+            occupied_directions[(first_r, first_c + j)] = {(0, 1)}
         placed.append({"word": first, "row": first_r, "col": first_c, "dr": 0, "dc": 1, "clue": normalized[first]})
         remaining = [w for w in words if w != first]
         # A crossable word may unlock another word: revisit after every placement.
         while remaining:
             scored = []
             for word in remaining:
-                choices = _cross_candidates(board, word, rng)
+                choices = _cross_candidates(board, word, rng, occupied_directions)
                 if choices:
                     score, r, c, dr, dc = choices[0]
                     scored.append((score, rng.random(), word, r, c, dr, dc))
@@ -192,7 +267,9 @@ def make_crossword(entries: dict[str, str], *, size: int = 19, seed: int = 0, re
             scored.sort(reverse=True)
             score, _, word, r, c, dr, dc = scored[rng.randrange(min(3, len(scored)))] if _ % 3 == 0 else scored[0]
             for j, letter in enumerate(word):
-                board[r + j * dr][c + j * dc] = letter
+                rr, cc = r + j * dr, c + j * dc
+                board[rr][cc] = letter
+                occupied_directions.setdefault((rr, cc), set()).add((dr, dc))
             placed.append({"word": word, "row": r, "col": c, "dr": dr, "dc": dc, "clue": normalized[word]})
             remaining.remove(word)
         if best is None or len(placed) > len(best[1]):
