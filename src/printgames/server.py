@@ -1,4 +1,4 @@
-"""PrintGames MCP Server — 16 print-ready puzzle and pen-and-paper game generators.
+"""PrintGames MCP Server — 22 print-ready puzzle and pen-and-paper game generators.
 
 Compatible with both MCP SDK v2 (MCPServer) and v1 (FastMCP).
 """
@@ -33,6 +33,12 @@ from .models import (
     CategoriesSpec,
     ColorByNumberSpec,
     CryptogramSpec,
+    WordSearchSpec,
+    NumberSearchSpec,
+    CrosswordSpec,
+    KrissKrossSpec,
+    SudokuSpec,
+    NonogramSpec,
     DotsAndBoxesSpec,
     DotToDotSpec,
     HangmanSpec,
@@ -46,7 +52,7 @@ from .models import (
 
 SERVER_INSTRUCTIONS = """
 You are connected to the PrintGames MCP server, which generates publication-grade,
-strictly page-fitted printable games (PDF and/or standalone HTML) across 16 game types.
+strictly page-fitted printable games (PDF and/or standalone HTML) across 22 game types.
 
 MANDATORY RULES FOR AI CALLERS:
 1. ALWAYS supply complete, original, audience-appropriate content and context:
@@ -116,7 +122,7 @@ def _load_ai_instructions_text() -> str:
 
 @mcp.tool()
 def list_capabilities() -> dict[str, Any]:
-    """List all 16 supported print game types, page sizes, visual themes, and 75+ built-in SVG icon names.
+    """List all 22 supported print game types, page sizes, visual themes, and 75+ built-in SVG icon names.
 
     Call this first if you need exact icon names, page dimensions, or theme keys before generating a game.
     """
@@ -169,7 +175,67 @@ def list_capabilities() -> dict[str, Any]:
 
 
 # =============================================================================
-# CATEGORY 1: WORD & LETTER PUZZLES (6 TOOLS)
+# PRINTABLE PUZZLES — NATIVE MCP TOOLS (6)
+# =============================================================================
+
+@mcp.tool()
+def generate_word_search(spec: WordSearchSpec) -> dict[str, Any]:
+    """Generate a seed-reproducible printable Word Search with answer key.
+
+    Supply 'words', grid_size (6..25), and standard PrintGames layout and export fields.
+    For beginners use difficulty='easy' for forwards-only horizontal/vertical words.
+    """
+    return _export(spec)
+
+
+@mcp.tool()
+def generate_number_search(spec: NumberSearchSpec) -> dict[str, Any]:
+    """Generate a printable number-sequence search with answer key.
+
+    Supply 'numbers' as strings so leading zeros are preserved; use grid_size (6..25).
+    """
+    return _export(spec)
+
+
+@mcp.tool()
+def generate_crossword(spec: CrosswordSpec) -> dict[str, Any]:
+    """Generate a real crossword from original answer/clue pairs.
+
+    Supply 'entries' as [{'answer': '...', 'clue': '...'}] and odd grid_size (9..29).
+    All supplied answers must fit; generator raises a validation error if they cannot.
+    """
+    return _export(spec)
+
+
+@mcp.tool()
+def generate_kriss_kross(spec: KrissKrossSpec) -> dict[str, Any]:
+    """Generate a printable fill-in crossword with numbered slots and word bank.
+
+    Supply 'words' and odd grid_size (9..29). No clue-writing necessary.
+    """
+    return _export(spec)
+
+
+@mcp.tool()
+def generate_sudoku(spec: SudokuSpec) -> dict[str, Any]:
+    """Generate printable 4x4, 6x6 or 9x9 Sudoku with a verified unique answer.
+
+    Supply 'grid_size', 'seed', and difficulty; includes an optional solution page.
+    """
+    return _export(spec)
+
+
+@mcp.tool()
+def generate_nonogram(spec: NonogramSpec) -> dict[str, Any]:
+    """Generate a 5x5 or 7x7 uniquely-solvable picture-logic puzzle.
+
+    Supply 'grid_size' and 'seed'; solution page reveals the silhouette.
+    """
+    return _export(spec)
+
+
+# =============================================================================
+# CATEGORY 1: WORD & LETTER PUZZLES (12 TOOLS)
 # =============================================================================
 
 
