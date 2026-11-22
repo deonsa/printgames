@@ -62,9 +62,15 @@ def _grid_table(data: dict[str, Any], page: PageSpec, theme: ThemeSpec, answer: 
         for r, line in enumerate(grid):
             entries = []
             for c, ch in enumerate(line):
-                bg = theme.accent_soft if (r, c) in found else theme.paper
-                weight = "800" if (r, c) in found else "600"
-                entries.append(f'<td style="width:{cell:.2f}mm;height:{cell:.2f}mm;border:0.45pt solid {theme.border};background:{bg};text-align:center;padding:0;font-size:{max(7.0,cell*1.15):.1f}pt;font-weight:{weight};font-family:{theme.font_mono};">{escape(ch)}</td>')
+                marked = (r, c) in found
+                bg = theme.accent_soft if marked else theme.paper
+                weight = "800" if marked else "600"
+                # Underlining and a dark cell outline remain visible in
+                # ink-saver mode, where accent_soft and paper are both white.
+                border = f"1.15pt solid {theme.ink}" if marked else f"0.45pt solid {theme.border}"
+                underline = ("text-decoration:underline;text-decoration-thickness:1.2pt;"
+                             "text-underline-offset:1.0pt;") if marked else ""
+                entries.append(f'<td style="width:{cell:.2f}mm;height:{cell:.2f}mm;border:{border};background:{bg};text-align:center;padding:0;font-size:{max(7.0,cell*1.15):.1f}pt;font-weight:{weight};font-family:{theme.font_mono};{underline}">{escape(ch)}</td>')
             rows.append('<tr>' + ''.join(entries) + '</tr>')
     elif kind in ("crossword", "kriss_kross"):
         starts = {(x["row"], x["col"]): x["number"] for x in data["entries"]}
