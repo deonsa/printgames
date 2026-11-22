@@ -1032,8 +1032,91 @@ class MadLibsSpec(BaseGameSpec):
         return self
 
 
+
+# =============================================================================
+# PRINTABLE WORD / NUMBER / LOGIC PUZZLES
+# =============================================================================
+
+class WordSearchSpec(BaseGameSpec):
+    game_type: Literal["word_search"] = "word_search"
+    words: list[str] = Field(..., min_length=2, max_length=24,
+                             description="Vocabulary words to hide in the grid (A-Z; spaces/punctuation are removed).")
+    grid_size: int = Field(default=13, ge=6, le=25,
+                           description="Square letter grid dimension. Increase for longer word lists.")
+    seed: int = Field(default=0, description="Seed for reproducible placements.")
+
+
+class NumberSearchSpec(BaseGameSpec):
+    game_type: Literal["number_search"] = "number_search"
+    numbers: list[str] = Field(..., min_length=2, max_length=24,
+                               description="Number sequences to hide, given as strings to preserve leading zeroes.")
+    grid_size: int = Field(default=12, ge=6, le=25)
+    seed: int = Field(default=0)
+
+
+class CrosswordEntry(BaseModel):
+    answer: str = Field(..., min_length=3, max_length=29,
+                        description="Answer word; letters A-Z (spaces and punctuation removed for the grid).")
+    clue: str = Field(..., min_length=3, max_length=180,
+                      description="Original, age-appropriate clue for the answer.")
+
+
+class CrosswordSpec(BaseGameSpec):
+    game_type: Literal["crossword"] = "crossword"
+    entries: list[CrosswordEntry] = Field(..., min_length=3, max_length=25,
+                                         description="Answer/clue pairs. All answers must fit; generator never silently omits them.")
+    grid_size: int = Field(default=19, ge=9, le=29,
+                           description="Odd-numbered maximum grid dimension (9..29).")
+    seed: int = Field(default=0)
+
+    @model_validator(mode="after")
+    def _check_crossword_entries(self) -> "CrosswordSpec":
+        if self.grid_size % 2 == 0:
+            raise ValueError("Crossword grid_size must be odd.")
+        canonical = [re.sub("[^A-Z]", "", x.answer.upper()) for x in self.entries]
+        if len(set(canonical)) != len(canonical):
+            raise ValueError("Crossword answers must be distinct after normalization.")
+        return self
+
+
+class KrissKrossSpec(BaseGameSpec):
+    game_type: Literal["kriss_kross"] = "kriss_kross"
+    words: list[str] = Field(..., min_length=3, max_length=25,
+                             description="Unique words to fit into a blank crossword grid, with a length-grouped word bank.")
+    grid_size: int = Field(default=19, ge=9, le=29)
+    seed: int = Field(default=0)
+
+    @model_validator(mode="after")
+    def _check_kriss_kross(self) -> "KrissKrossSpec":
+        if self.grid_size % 2 == 0:
+            raise ValueError("Kriss-kross grid_size must be odd.")
+        return self
+
+
+class SudokuSpec(BaseGameSpec):
+    game_type: Literal["sudoku"] = "sudoku"
+    grid_size: Literal[4, 6, 9] = Field(default=9,
+                                        description="4x4 (2x2 boxes), 6x6 (2x3 boxes), or 9x9 (3x3 boxes).")
+    difficulty: Difficulty = Field(default="medium",
+                                    description="easy, medium or hard; expert maps to hard and all_ages to easy.")
+    seed: int = Field(default=0)
+
+
+class NonogramSpec(BaseGameSpec):
+    game_type: Literal["nonogram"] = "nonogram"
+    grid_size: Literal[5, 7] = Field(default=5,
+                                     description="Small uniquely-solvable picture-logic puzzle (5x5 or 7x7).")
+    seed: int = Field(default=0, description="Determines the picture silhouette.")
+    
+
 AnyGameSpec = (
-    CryptogramSpec
+    WordSearchSpec
+    | NumberSearchSpec
+    | CrosswordSpec
+    | KrissKrossSpec
+    | SudokuSpec
+    | NonogramSpec
+    | CryptogramSpec
     | WordLadderSpec
     | AnagramScrambleSpec
     | AcrosticSpec
