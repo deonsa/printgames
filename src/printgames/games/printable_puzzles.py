@@ -46,11 +46,49 @@ def _grid_table(data: dict[str, Any], page: PageSpec, theme: ThemeSpec, answer: 
     kind = data["type"]
     grid = data["grid"]
     nr, nc = len(grid), len(grid[0])
-    available_w = max(40, page.content_width_mm - 23)
-    available_h = max(50, page.content_height_mm * (0.49 if kind in ("crossword", "kriss_kross") else 0.57))
-    cell = min((16 if kind in ("sudoku", "nonogram") else 10.5) * page.scale,
-               available_w / (nc + (2.8 if kind == "nonogram" else 0)),
-               available_h / (nr + (1.9 if kind == "nonogram" else 0)))
+    # Reserve the actual printable area for the page frame, title, mandatory
+    # instructions, footer, and (where applicable) the clue/word bank. Do not
+    # impose a positive floor on the available area: on a tiny custom page
+    # that would invent physical space which the paper does not have.
+    available_w = max(0.0, page.content_width_mm - 23.0)
+    if kind in ("word_search", "number_search"):
+        notes_rows = (len(data["items"]) + 2) // 3
+    elif kind == "crossword":
+        notes_rows = (len(data["entries"]) + 1) // 2
+    elif kind == "kriss_kross":
+        notes_rows = len({len(w) for w in data["word_bank"]})
+    else:
+        notes_rows = 0
+    # 52 mm (scaled) is a conservative allowance for frame padding, page
+    # chrome, player instructions and footer; another 4 mm per notes row.
+    reserved_h = (52.0 + 4.0 * notes_rows) * page.scale
+    available_h = max(
+        0.0,
+        min(
+            page.content_height_mm * (0.49 if kind in ("crossword", "kriss_kross") else 0.57),
+            page.content_height_mm - reserved_h,
+        ),
+    )
+    cell = min(
+        (16 if kind in ("sudoku", "nonogram") else 10.5) * page.scale,
+        available_w / (nc + (2.8 if kind == "nonogram" else 0)),
+        available_h / (nr + (1.9 if kind == "nonogram" else 0)),
+    )
+    # Fonts have a physical minimum size: a 7 pt glyph plus table borders
+    # cannot be printed clearly into a 1.6 mm cell. Reject impossible layouts
+    # before HTML/PDF export, which otherwise clips overflowing page bodies.
+    min_cell = {
+        "word_search": 4.2, "number_search": 4.2,
+        "crossword": 4.8, "kriss_kross": 4.8,
+        "sudoku": 5.2, "nonogram": 5.5,
+    }[kind]
+    if cell < min_cell:
+        raise ValueError(
+            f"{kind} {nr}x{nc} grid cannot fit legibly on "
+            f"{page.width_mm:g} x {page.height_mm:g} mm paper: "
+            f"estimated cell size {cell:.2f} mm is below the "
+            f"{min_cell:.1f} mm minimum. Reduce grid_size or use a larger page_size."
+        )
     # The native page-frame provides all headers, instructions, footers, and safe margins.
     table_start = f'<table style="border-collapse:collapse;table-layout:fixed;margin:0 auto;border:1pt solid {theme.border_strong};">'
     rows: list[str] = []
@@ -70,7 +108,7 @@ def _grid_table(data: dict[str, Any], page: PageSpec, theme: ThemeSpec, answer: 
                 border = f"1.15pt solid {theme.ink}" if marked else f"0.45pt solid {theme.border}"
                 underline = ("text-decoration:underline;text-decoration-thickness:1.2pt;"
                              "text-underline-offset:1.0pt;") if marked else ""
-                entries.append(f'<td style="width:{cell:.2f}mm;height:{cell:.2f}mm;border:{border};background:{bg};text-align:center;padding:0;font-size:{max(7.0,cell*1.15):.1f}pt;font-weight:{weight};font-family:{theme.font_mono};{underline}">{escape(ch)}</td>')
+                entries.append(f'<td style="width:{cell:.2f}mm;height:{cell:.2f}mm;border:{border};background:{bg};text-align:center;vertical-align:middle;line-height:1;padding:0;font-size:{max(7.0,cell*1.15):.1f}pt;font-weight:{weight};font-family:{theme.font_mono};{underline}">{escape(ch)}</td>')
             rows.append('<tr>' + ''.join(entries) + '</tr>')
     elif kind in ("crossword", "kriss_kross"):
         starts = {(x["row"], x["col"]): x["number"] for x in data["entries"]}
