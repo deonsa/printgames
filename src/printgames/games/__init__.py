@@ -26,6 +26,12 @@ from ..models import (
     CategoriesSpec,
     ColorByNumberSpec,
     CryptogramSpec,
+    WordSearchSpec,
+    NumberSearchSpec,
+    CrosswordSpec,
+    KrissKrossSpec,
+    SudokuSpec,
+    NonogramSpec,
     DotToDotSpec,
     DotsAndBoxesSpec,
     HangmanSpec,
@@ -35,6 +41,14 @@ from ..models import (
     RebusSpec,
     SpotTheDifferenceSpec,
     WordLadderSpec,
+)
+from .printable_puzzles import (
+    render_word_search,
+    render_number_search,
+    render_crossword,
+    render_kriss_kross,
+    render_sudoku,
+    render_nonogram,
 )
 from .multiplayer_games import (
     render_battleship,
@@ -61,6 +75,12 @@ from .word_puzzles import (
 
 GAME_REGISTRY: dict[str, tuple[type[AnyGameSpec], Callable[[Any, PageSpec, ThemeSpec], list[RenderedPage]], str]] = {
     # Word & Letter Puzzles
+    "word_search": (WordSearchSpec, render_word_search, "Word & Letter Puzzles"),
+    "number_search": (NumberSearchSpec, render_number_search, "Word & Letter Puzzles"),
+    "crossword": (CrosswordSpec, render_crossword, "Word & Letter Puzzles"),
+    "kriss_kross": (KrissKrossSpec, render_kriss_kross, "Word & Letter Puzzles"),
+    "sudoku": (SudokuSpec, render_sudoku, "Logic Puzzles"),
+    "nonogram": (NonogramSpec, render_nonogram, "Logic Puzzles"),
     "cryptogram": (CryptogramSpec, render_cryptogram, "Word & Letter Puzzles"),
     "word_ladder": (WordLadderSpec, render_word_ladder, "Word & Letter Puzzles"),
     "anagram_scramble": (AnagramScrambleSpec, render_anagram_scramble, "Word & Letter Puzzles"),
