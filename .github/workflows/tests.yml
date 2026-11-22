@@ -25,3 +25,12 @@ jobs:
         run: uv sync --group dev
       - name: Verify all generators, MCP interfaces and PDF exports
         run: uv run pytest -q
+      - name: Render native A4 PDF showcase
+        run: uv run python examples/generate_printable_showcase.py
+      - name: Upload PDF showcase
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: printable-puzzle-showcase
+          path: output/printable-showcase/*.pdf
+          if-no-files-found: warn
