@@ -228,3 +228,66 @@ def test_large_search_grid_remains_printable_on_a4(kind, tmp_path):
     assert result.verified_pdf_pages == 2
     assert result.fit_verified is True
     assert result.warnings == []
+
+
+# Re-review regression: full text of 20 two-column crossword clues must
+# either fit on the physical page or fail before producing a clipped export.
+_DENSE_CROSSWORD_WORDS = [
+    "APPLE", "PEAR", "GRAPE", "PEACH", "PLUM", "ORANGE", "LEMON",
+    "LIME", "MELON", "MANGO", "PAPAYA", "BANANA", "CHERRY",
+    "APRICOT", "PINEAPPLE", "GUAVA", "FIG", "DATE", "RAISIN", "KIWI",
+]
+
+
+def _dense_crossword_entries(long_clues: bool) -> list[dict[str, str]]:
+    entries = []
+    for i, answer in enumerate(_DENSE_CROSSWORD_WORDS, 1):
+        marker = f"CLUE{i:02d}"
+        if long_clues:
+            clue = (marker + " " + (
+                "A detailed vocabulary question offering several contextual "
+                "hints, additional descriptions, and precise examples to "
+                "guide the student toward the correct fruit answer. "
+            ) * 2)[:180]
+        else:
+            clue = f"{marker} Identify this familiar fruit."
+        entries.append({"answer": answer, "clue": clue})
+    return entries
+
+
+def test_20_long_crossword_clues_rejected_before_export_on_a4(tmp_path):
+    # The generator can place all 20 words, but 180-character clues in two
+    # columns cannot fit beside a readable 16x18 grid on A4 paper.
+    target = tmp_path / "overfull_crossword.pdf"
+    data = spec(
+        "crossword", entries=_dense_crossword_entries(long_clues=True),
+        grid_size=19, seed=3, output_format="pdf", output_path=str(target),
+    )
+    with pytest.raises(ValueError, match=r"grid cannot fit legibly"):
+        produce_game_from_dict(data)
+    assert not target.exists(), "Must not write a PDF with hidden clues"
+
+
+def test_20_crossword_clues_in_pdf_are_all_visible_on_first_page(tmp_path):
+    import shutil
+    import subprocess
+
+    if not shutil.which("pdftotext"):
+        pytest.skip("pdftotext is required to verify every printed clue")
+    target = tmp_path / "complete_crossword.pdf"
+    data = spec(
+        "crossword", entries=_dense_crossword_entries(long_clues=False),
+        grid_size=19, seed=3, output_format="pdf", output_path=str(target),
+    )
+    result = produce_game_from_dict(data)
+    assert result.verified_pdf_pages == 2
+    assert result.fit_verified is True and not result.warnings
+
+    # Checking page count alone is insufficient: every numbered clue must
+    # be present in the ACTUAL printed worksheet page, not only in source HTML.
+    extracted = subprocess.run(
+        ["pdftotext", "-f", "1", "-l", "1", str(target), "-"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    for i in range(1, len(_DENSE_CROSSWORD_WORDS) + 1):
+        assert f"CLUE{i:02d}" in extracted, f"Clue {i} was missing from the PDF"
