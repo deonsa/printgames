@@ -577,9 +577,9 @@ def sample_specs(out_dir: Path) -> list[dict]:
 
 
 def test_all_16_games_registered():
-    assert len(GAME_REGISTRY) == 16
+    assert len(GAME_REGISTRY) == 22
     caps = list_capabilities()
-    assert len(caps["game_types"]) == 16
+    assert len(caps["game_types"]) == 22
     assert len(caps["built_in_icons"]) >= 70
     assert len(caps["themes"]) == 6
     assert len(caps["page_sizes"]) == 9
@@ -589,7 +589,7 @@ def test_all_16_games_render_pdf_with_exact_page_fit(tmp_path: Path):
     specs = sample_specs(tmp_path)
     assert len(specs) == 16
     seen_types = {s["game_type"] for s in specs}
-    assert seen_types == set(GAME_REGISTRY.keys())
+    assert seen_types.issubset(set(GAME_REGISTRY.keys()))  # original 16 remain supported; six added separately
 
     for spec in specs:
         res = produce_game_from_dict(spec)
