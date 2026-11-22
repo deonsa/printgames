@@ -1,8 +1,8 @@
 # PrintGames MCP
 
-A Model Context Protocol (MCP) server and rendering engine that generates **beautiful, publication-grade, strictly page-fitted printable games** (PDF and standalone HTML) across **16 classic game types** — plus multi-game activity booklets with cover pages, tables of contents, and collated answer keys.
+A Model Context Protocol (MCP) server and rendering engine that generates **beautiful, publication-grade, strictly page-fitted printable games** (PDF and standalone HTML) across **22 classic game types** — plus multi-game activity booklets with cover pages, tables of contents, and collated answer keys.
 
-## Supported Game Types (16)
+## Supported Game Types (22)
 
 ### Word & Letter Puzzles
 1. **Cryptograms** (`generate_cryptogram`) — Substitution-cipher quotes with hints, optional frequency counts, and A–Z decoder scratchpad.
@@ -25,6 +25,36 @@ A Model Context Protocol (MCP) server and rendering engine that generates **beau
 14. **Categories (Scattergories)** (`generate_categories`) — Curated category tables across multiple rounds with letter roll boxes and score totals.
 15. **Hangman** (`generate_hangman`) — Classic gallows or family-friendly snowman, flower, and rocket themes; open-play or host-prepared rounds with Host Secret Key.
 16. **Mad Libs** (`generate_mad_libs`) — Generously spaced fill-in story sheets with an optional Page-1 spoiler-free Word Collector sheet and grammar guide.
+
+### Additional Printable Word & Logic Puzzles
+17. **Word Search** (`generate_word_search`) — Seeded letter grids, difficulty-controlled directions, answer-key highlights, and teacher-supplied vocabulary.
+18. **Number Search** (`generate_number_search`) — Search for number strings, including values with leading zeros, with solution paths.
+19. **Crossword** (`generate_crossword`) — Numbered across/down crossword from teacher-authored `answer`/`clue` pairs; never silently omits clues.
+20. **Fill-in Crossword / Kriss-Kross** (`generate_kriss_kross`) — Numbered blank crossword accompanied by a word bank grouped by answer length.
+21. **Sudoku** (`generate_sudoku`) — Unique-solution 4×4, 6×6 and 9×9 printable Sudoku with answer key.
+22. **Nonogram** (`generate_nonogram`) — Uniquely solvable 5×5 or 7×7 picture-logic puzzles with row/column run clues.
+
+All six are registered in the **same MCP server**, use the standard `spec` envelope (`title`, `instructions`, `page_size`, `orientation`, `theme`, `ink_saver`, `include_answer_key`, `output_format`, and `output_path`), and work with `create_game_booklet`.
+
+**Example: Word Search**
+
+```json
+{
+  "game_type": "word_search",
+  "title": "Rainforest Vocabulary",
+  "instructions": "Circle each rainforest word in the letter grid, then tick it off below.",
+  "words": ["JAGUAR", "CANOPY", "MONKEY", "TOUCAN"],
+  "grid_size": 13,
+  "seed": 42,
+  "difficulty": "easy",
+  "page_size": "a4",
+  "theme": "playful_studio",
+  "include_answer_key": true,
+  "output_format": "both"
+}
+```
+
+**Example: Crossword** — use `entries: [{"answer": "APPLE", "clue": "A crunchy fruit"}, ...]`, `grid_size: 19` (odd integer), and a reproducible `seed`.
 
 ### Bonus: Multi-Game Booklets
 - **`create_game_booklet`** — Compiles 2–40 mixed games into a single print-ready PDF with Cover Page, automatic Table of Contents, unified styling, and collated Answer Keys at the back.
